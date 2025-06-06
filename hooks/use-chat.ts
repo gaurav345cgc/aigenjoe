@@ -4,8 +4,11 @@ import { useState, useCallback, useEffect } from "react";
 import type { Message } from "ai";
 import { v4 as uuidv4 } from "uuid";
 import { generateChatResponse } from "@/app/actions/chat-actions"; // ✅ matches your file
+import { useToast } from "@/components/ui/use-toast"; // Import useToast
 
 export function useChat() {
+  const { toast } = useToast(); // Initialize useToast
+
   // Initialize with empty state to match server render
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -70,19 +73,41 @@ export function useChat() {
       if (result?.threadId) {
         setThreadId(result.threadId); // Always update thread ID if we get a new one
       }
-    } catch (err) {
+    } catch (err: any) { // Added type annotation
       console.error("Assistant error:", err);
+      console.error("Full error details:", JSON.stringify(err, null, 2)); // Log full error object
+
+      let errorMessage = "Something went wrong. Try again.";
+      if (err.message && typeof err.message === 'string') {
+         // Attempt to extract a more specific message
+         // This might need refinement based on the actual error structure from Vercel logs
+         if (err.message.includes('thread_id')) {
+             errorMessage = "Error with conversation session. Starting a new one.";
+         } else {
+             errorMessage = `Error: ${err.message.substring(0, 100)}...`; // Truncate long messages
+         }
+      } else if (typeof err === 'string') {
+          errorMessage = `Error: ${err.substring(0, 100)}...`;
+      }
+
+      toast({
+        title: "Chat Error",
+        description: errorMessage,
+        variant: "destructive"
+      });
+
       // If we get a thread ID error, clear the stored thread ID
       if (err instanceof Error && err.message.includes('thread_id')) {
         localStorage.removeItem('chatThreadId');
         setThreadId(undefined);
       }
+
       setMessages((prev) => [
         ...prev,
         {
           id: uuidv4(),
           role: "assistant",
-          content: "Something went wrong. Try again.",
+          content: errorMessage, // Also add the error message to the chat history
         },
       ]);
     } finally {

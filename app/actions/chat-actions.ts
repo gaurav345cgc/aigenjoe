@@ -6,10 +6,15 @@ import { OpenAI } from "openai";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const assistantId = process.env.OPENAI_ASSISTANT_ID!;
 
-export async function generateChatResponse(messages: any[], threadId?: string) {
+export async function generateChatResponse(messages: any[], threadId?: string | null) {
+  console.log("generateChatResponse called with threadId:", threadId);
   try {
-    const thread = threadId
-      ? await openai.beta.threads.retrieve(threadId)
+    // Ensure threadId is treated as undefined if it's null or an empty string
+    const validThreadId = (threadId && threadId.trim() !== '') ? threadId : undefined;
+    console.log("Valid threadId after check:", validThreadId);
+
+    const thread = validThreadId
+      ? await openai.beta.threads.retrieve(validThreadId)
       : await openai.beta.threads.create();
 
     const lastUserMessage = messages.filter(m => m.role === "user").pop();
@@ -46,8 +51,18 @@ export async function generateChatResponse(messages: any[], threadId?: string) {
     } else {
       throw new Error(`Run ended with status: ${runStatus.status}`);
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error("generateChatResponse error:", err);
-    throw new Error("Failed to generate assistant response.");
+
+    // Log specific details if available from OpenAI error
+    if (err.status) console.error("Error status:", err.status);
+    if (err.code) console.error("Error code:", err.code);
+    if (err.param) console.error("Error param:", err.param);
+    if (err.type) console.error("Error type:", err.type);
+    if (err.message) console.error("Error message:", err.message);
+    if (err.stack) console.error("Error stack:", err.stack);
+
+    // Re-throw the error to be caught by the caller (e.g., the client component)
+    throw err; 
   }
 }
