@@ -12,7 +12,7 @@ export function useChat() {
   // Initialize with empty state to match server render
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  // Removed threadId state and localStorage initialization
+  // Removed all threadId state and related logic
   // Removed threadId state
   // const [threadId, setThreadId] = useState<string | undefined>(() => {
   //   if (typeof window !== 'undefined') {
@@ -61,8 +61,8 @@ export function useChat() {
     setLastCompletedAssistantMessage(null); // Clear last completed message on new submission
 
     try {
-      // Removed threadId argument
-      const result = await generateChatResponse(updatedMessages);
+      // Call generateChatResponse without threadId
+      const result = await generateChatResponse(updatedMessages); // Pass messages for context in a new thread
 
       if (result?.text) {
         const assistantMessage: Message = {
