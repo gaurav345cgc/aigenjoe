@@ -17,6 +17,8 @@ export async function generateChatResponse(messages: any[], threadId?: string | 
       ? await openai.beta.threads.retrieve(validThreadId)
       : await openai.beta.threads.create();
 
+    console.log("Using thread ID for OpenAI API calls:", thread.id);
+
     const lastUserMessage = messages.filter(m => m.role === "user").pop();
     if (!lastUserMessage) throw new Error("No user message found.");
 
