@@ -12,14 +12,13 @@ export function useChat() {
   // Initialize with empty state to match server render
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  // Removed all threadId state and related logic
-  // Removed threadId state
-  // const [threadId, setThreadId] = useState<string | undefined>(() => {
-  //   if (typeof window !== 'undefined') {
-  //     return localStorage.getItem('chatThreadId') || undefined;
-  //   }
-  //   return undefined;
-  // });
+  // Re-adding threadId state and localStorage initialization
+  const [threadId, setThreadId] = useState<string | undefined>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('chatThreadId') || undefined;
+    }
+    return undefined;
+  });
   // ✅ memory per refresh
   const [isLoading, setIsLoading] = useState(false);
   const [lastCompletedAssistantMessage, setLastCompletedAssistantMessage] = useState<Message | null>(null);
@@ -30,12 +29,15 @@ export function useChat() {
     setIsClient(true);
   }, []);
 
-  // Removed effect to persist thread ID to localStorage
-  // useEffect(() => {
-  //   if (isClient && threadId) {
-  //     localStorage.setItem('chatThreadId', threadId);
-  //   }
-  // }, [threadId, isClient]);
+  // Re-adding effect to persist thread ID to localStorage when it changes
+  useEffect(() => {
+    if (isClient && threadId) {
+      localStorage.setItem('chatThreadId', threadId);
+    } else if (isClient && threadId === undefined) {
+       // Also clear localStorage if threadId becomes undefined (e.g., on error)
+       localStorage.removeItem('chatThreadId');
+    }
+  }, [threadId, isClient]);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (!isClient) return;
@@ -61,8 +63,8 @@ export function useChat() {
     setLastCompletedAssistantMessage(null); // Clear last completed message on new submission
 
     try {
-      // Call generateChatResponse without threadId
-      const result = await generateChatResponse(updatedMessages); // Pass messages for context in a new thread
+      // Pass threadId to generateChatResponse
+      const result = await generateChatResponse(updatedMessages, threadId);
 
       if (result?.text) {
         const assistantMessage: Message = {
@@ -75,19 +77,23 @@ export function useChat() {
         setLastCompletedAssistantMessage(assistantMessage);
       }
 
-      // Removed threadId update logic
-      // if (result?.threadId) {
-      //   setThreadId(result.threadId); // Always update thread ID if we get a new one
-      // }
+      // Update threadId state with the returned threadId
+      if (result?.threadId) {
+        setThreadId(result.threadId); // Always update thread ID if we get a new one
+      }
 
     } catch (err: any) {
       console.error("Assistant error:", err);
       console.error("Full error details:", JSON.stringify(err, null, 2));
 
       let errorMessage = "Something went wrong. Try again.";
-      // Simplified error message check as thread_id error is no longer expected
+      // Use specific error messages from server action if available
       if (err.message && typeof err.message === 'string') {
-         errorMessage = `Error: ${err.message.substring(0, 100)}...`;
+         if (err.message.startsWith('[CRITICAL_THREAD_ERROR]') || err.message.startsWith('[THREAD_OPERATION_FAILED]') || err.message.startsWith('[THREAD_ID_MISSING]') || err.message.startsWith('[RUN_STATUS_ERROR]') || err.message.startsWith('[RUN_OPERATION_FAILED]')) {
+             errorMessage = `Chat Error: ${err.message}`; // Show the detailed server error message
+         } else {
+             errorMessage = `Error: ${err.message.substring(0, 100)}...`;
+         }
       } else if (typeof err === 'string') {
           errorMessage = `Error: ${err.substring(0, 100)}...`;
       }
@@ -98,11 +104,12 @@ export function useChat() {
         variant: "destructive"
       });
 
-      // Removed thread ID clearing logic as it's no longer managed
-      // if (err instanceof Error && err.message.includes('thread_id')) {
-      //   localStorage.removeItem('chatThreadId');
-      //   setThreadId(undefined);
-      // }
+      // Clear thread ID in localStorage and state on specific thread errors
+      if (err instanceof Error && (err.message.includes('thread_id') || err.message.startsWith('[CRITICAL_THREAD_ERROR]') || err.message.startsWith('[THREAD_OPERATION_FAILED]') || err.message.startsWith('[THREAD_ID_MISSING]'))) {
+        console.warn("Clearing threadId due to error:", err.message);
+        localStorage.removeItem('chatThreadId');
+        setThreadId(undefined);
+      }
 
       setMessages((prev) => [
         ...prev,
@@ -115,7 +122,7 @@ export function useChat() {
     } finally {
       setIsLoading(false);
     }
-  }, [input, messages, isClient]); // Removed threadId from dependencies
+  }, [input, messages, threadId, isClient]); // Re-added threadId to dependencies
 
   const handleStop = useCallback(() => {
     if (!isClient) return;
@@ -132,7 +139,6 @@ export function useChat() {
     handleStop,
     isLoading,
     lastCompletedAssistantMessage,
-    // Removed threadId from returned object
-    // threadId,
+    threadId, // Re-adding threadId to returned object
   };
 }
