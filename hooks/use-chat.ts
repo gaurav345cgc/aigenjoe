@@ -3,21 +3,23 @@
 import { useState, useCallback, useEffect } from "react";
 import type { Message } from "ai";
 import { v4 as uuidv4 } from "uuid";
-import { generateChatResponse } from "@/app/actions/chat-actions"; // ✅ matches your file
-import { useToast } from "@/components/ui/use-toast"; // Import useToast
+import { generateChatResponse } from "@/app/actions/chat-actions";
+import { useToast } from "@/components/ui/use-toast";
 
 export function useChat() {
-  const { toast } = useToast(); // Initialize useToast
+  const { toast } = useToast();
 
   // Initialize with empty state to match server render
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [threadId, setThreadId] = useState<string | undefined>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('chatThreadId') || undefined;
-    }
-    return undefined;
-  });
+  // Removed threadId state and localStorage initialization
+  // Removed threadId state
+  // const [threadId, setThreadId] = useState<string | undefined>(() => {
+  //   if (typeof window !== 'undefined') {
+  //     return localStorage.getItem('chatThreadId') || undefined;
+  //   }
+  //   return undefined;
+  // });
   // ✅ memory per refresh
   const [isLoading, setIsLoading] = useState(false);
   const [lastCompletedAssistantMessage, setLastCompletedAssistantMessage] = useState<Message | null>(null);
@@ -28,12 +30,12 @@ export function useChat() {
     setIsClient(true);
   }, []);
 
-  // Persist thread ID to localStorage when it changes
-  useEffect(() => {
-    if (isClient && threadId) {
-      localStorage.setItem('chatThreadId', threadId);
-    }
-  }, [threadId, isClient]);
+  // Removed effect to persist thread ID to localStorage
+  // useEffect(() => {
+  //   if (isClient && threadId) {
+  //     localStorage.setItem('chatThreadId', threadId);
+  //   }
+  // }, [threadId, isClient]);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (!isClient) return;
@@ -51,13 +53,16 @@ export function useChat() {
       content: input.trim(),
     };
 
+    // Add user message to messages immediately
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
-    setInput("");
+    setInput(""); // Clear input field
     setIsLoading(true);
+    setLastCompletedAssistantMessage(null); // Clear last completed message on new submission
 
     try {
-      const result = await generateChatResponse(updatedMessages, threadId);
+      // Removed threadId argument
+      const result = await generateChatResponse(updatedMessages);
 
       if (result?.text) {
         const assistantMessage: Message = {
@@ -70,22 +75,19 @@ export function useChat() {
         setLastCompletedAssistantMessage(assistantMessage);
       }
 
-      if (result?.threadId) {
-        setThreadId(result.threadId); // Always update thread ID if we get a new one
-      }
-    } catch (err: any) { // Added type annotation
+      // Removed threadId update logic
+      // if (result?.threadId) {
+      //   setThreadId(result.threadId); // Always update thread ID if we get a new one
+      // }
+
+    } catch (err: any) {
       console.error("Assistant error:", err);
-      console.error("Full error details:", JSON.stringify(err, null, 2)); // Log full error object
+      console.error("Full error details:", JSON.stringify(err, null, 2));
 
       let errorMessage = "Something went wrong. Try again.";
+      // Simplified error message check as thread_id error is no longer expected
       if (err.message && typeof err.message === 'string') {
-         // Attempt to extract a more specific message
-         // This might need refinement based on the actual error structure from Vercel logs
-         if (err.message.includes('thread_id')) {
-             errorMessage = "Error with conversation session. Starting a new one.";
-         } else {
-             errorMessage = `Error: ${err.message.substring(0, 100)}...`; // Truncate long messages
-         }
+         errorMessage = `Error: ${err.message.substring(0, 100)}...`;
       } else if (typeof err === 'string') {
           errorMessage = `Error: ${err.substring(0, 100)}...`;
       }
@@ -96,28 +98,30 @@ export function useChat() {
         variant: "destructive"
       });
 
-      // If we get a thread ID error, clear the stored thread ID
-      if (err instanceof Error && err.message.includes('thread_id')) {
-        localStorage.removeItem('chatThreadId');
-        setThreadId(undefined);
-      }
+      // Removed thread ID clearing logic as it's no longer managed
+      // if (err instanceof Error && err.message.includes('thread_id')) {
+      //   localStorage.removeItem('chatThreadId');
+      //   setThreadId(undefined);
+      // }
 
       setMessages((prev) => [
         ...prev,
         {
           id: uuidv4(),
           role: "assistant",
-          content: errorMessage, // Also add the error message to the chat history
+          content: errorMessage,
         },
       ]);
     } finally {
       setIsLoading(false);
     }
-  }, [input, messages, threadId, isClient]);
+  }, [input, messages, isClient]); // Removed threadId from dependencies
 
   const handleStop = useCallback(() => {
     if (!isClient) return;
     setIsLoading(false);
+    // Note: Stopping a streamed completion would require canceling the API request,
+    // which is not implemented in this basic example.
   }, [isClient]);
 
   return {
@@ -128,6 +132,7 @@ export function useChat() {
     handleStop,
     isLoading,
     lastCompletedAssistantMessage,
-    threadId,
+    // Removed threadId from returned object
+    // threadId,
   };
 }
