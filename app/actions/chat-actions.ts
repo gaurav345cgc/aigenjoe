@@ -13,9 +13,30 @@ export async function generateChatResponse(messages: any[], threadId?: string | 
     const validThreadId = (threadId && threadId.trim() !== '') ? threadId : undefined;
     console.log("Valid threadId after check:", validThreadId);
 
-    const thread = validThreadId
-      ? await openai.beta.threads.retrieve(validThreadId)
-      : await openai.beta.threads.create();
+    let thread;
+    try {
+      if (validThreadId) {
+        console.log("Attempting to retrieve thread with ID:", validThreadId);
+        thread = await openai.beta.threads.retrieve(validThreadId);
+        console.log("Retrieved thread ID:", thread.id);
+      } else {
+        console.log("No valid threadId provided, creating a new thread.");
+        thread = await openai.beta.threads.create();
+        console.log("Created new thread with ID:", thread.id);
+      }
+
+      // Explicitly check if the obtained thread object and its ID are valid
+      if (!thread || !thread.id || typeof thread.id !== 'string' || !thread.id.startsWith('thread_')) {
+          const receivedThreadInfo = thread ? `ID: ${thread.id}, Object: ${JSON.stringify(thread)}` : 'null/undefined thread object';
+          throw new Error(`Invalid thread object obtained after operation. ValidThreadId was: ${validThreadId}. Received: ${receivedThreadInfo}`);
+      }
+
+    } catch (threadError: any) {
+        console.error("Error during thread creation or retrieval:", threadError);
+        const errorContext = `ValidThreadId: ${validThreadId || 'undefined (new thread attempt)'}`;
+        // Re-throw with context in the message
+        throw new Error(`Thread operation failed [${errorContext}]: ${threadError.message || 'Unknown error'}`);
+    }
 
     console.log("Using thread ID for OpenAI API calls:", thread.id);
 
